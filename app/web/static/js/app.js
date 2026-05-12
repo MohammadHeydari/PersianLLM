@@ -1,74 +1,61 @@
-console.log("NEW JS LOADED");
+console.log("WebSocket Chat Loaded");
 
 let sessionId = null;
+let ws;
+let botDiv = null;
 
-async function sendMessage() {
+// اتصال WebSocket
+function connectWS() {
+    ws = new WebSocket("ws://127.0.0.1:8000/ws/chat");
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.session_id) {
+            sessionId = data.session_id;
+        }
+
+        if (data.type === "token") {
+            if (botDiv) {
+                botDiv.textContent += data.content;
+            }
+        }
+
+        if (data.type === "done") {
+            botDiv = null;
+        }
+
+        window.scrollTo(0, document.body.scrollHeight);
+    };
+
+    ws.onclose = () => {
+        console.log("WS closed, reconnecting...");
+        setTimeout(connectWS, 1000);
+    };
+}
+
+connectWS();
+
+// ارسال پیام
+function sendMessage() {
     const input = document.getElementById("message");
     const message = input.value.trim();
 
     if (!message) return;
 
     addMessage(message, "user");
+
     input.value = "";
 
-    const botDiv = addMessage("", "bot");
+    botDiv = addMessage("", "bot");
 
-    const response = await fetch("/api/chat/", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            message: message,
-            session_id: sessionId
-        })
-    });
-
-    // ❗ اگر خطا از سرور اومد
-    if (!response.ok) {
-        botDiv.textContent = "❌ Server Error";
-        return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    let buffer = "";
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-
-        // آخرین خط ممکنه incomplete باشه → نگهش می‌داریم
-        buffer = lines.pop();
-
-        for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-                const data = JSON.parse(line);
-
-                if (data.session_id) {
-                    sessionId = data.session_id;
-                }
-
-                if (data.content) {
-                    botDiv.textContent += data.content;
-                }
-
-            } catch (err) {
-                console.error("Parse error:", err, line);
-            }
-        }
-
-        window.scrollTo(0, document.body.scrollHeight);
-    }
+    ws.send(JSON.stringify({
+        message: message,
+        session_id: sessionId
+    }));
 }
 
+// UI helper
 function addMessage(text, type) {
     const chat = document.getElementById("chat");
 
@@ -81,7 +68,8 @@ function addMessage(text, type) {
     return div;
 }
 
-document.getElementById("message").addEventListener("keypress", function (e) {
+// Enter support
+document.getElementById("message").addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
         sendMessage();
     }

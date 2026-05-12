@@ -47,3 +47,8 @@ def save_message(
     db.commit()
 
     return message
+
+def get_all_sessions(db):
+    return db.exec(
+        select(ChatSession)
+    ).all()
