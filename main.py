@@ -1,18 +1,29 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
 import requests
 import json
+import uuid
 
 app = FastAPI()
 
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Templates folder
 templates = Jinja2Templates(directory="templates")
 
-# حافظه مکالمه
-chat_history = []
+# In‑memory session storage
+chat_sessions = {}
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
+
+# -----------------------------
+# Home Page
+# -----------------------------
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse(
@@ -20,21 +31,32 @@ async def home(request: Request):
         name="index.html"
     )
 
+
+# -----------------------------
+# Chat Endpoint (Streaming)
+# -----------------------------
 @app.post("/chat")
 async def chat(request: Request):
 
     data = await request.json()
-    user_message = data.get("message")
 
-    # ذخیره پیام کاربر
-    chat_history.append({
+    user_message = data.get("message")
+    session_id = data.get("session_id")
+
+    # Create new session if needed
+    if not session_id or session_id not in chat_sessions:
+        session_id = str(uuid.uuid4())
+        chat_sessions[session_id] = []
+
+    # Add user message
+    chat_sessions[session_id].append({
         "role": "user",
         "content": user_message
     })
 
     payload = {
         "model": "gemma3:4b",
-        "messages": chat_history,
+        "messages": chat_sessions[session_id],
         "stream": True
     }
 
@@ -46,29 +68,33 @@ async def chat(request: Request):
             stream=True
         )
 
-        assistant_message = ""
+        assistant_reply = ""
+        first_chunk = True
 
         for line in response.iter_lines():
 
             if line:
+                json_line = json.loads(line.decode("utf-8"))
 
-                decoded_line = line.decode("utf-8")
-                json_data = json.loads(decoded_line)
+                if "message" in json_line:
+                    content = json_line["message"]["content"]
+                    assistant_reply += content
 
-                if "message" in json_data:
-                    content = json_data["message"]["content"]
+                    if first_chunk:
+                        first_chunk = False
+                        yield json.dumps({
+                            "session_id": session_id,
+                            "content": content
+                        }) + "\n"
+                    else:
+                        yield json.dumps({
+                            "content": content
+                        }) + "\n"
 
-                    assistant_message += content
-
-                    yield content
-
-        # ذخیره پاسخ مدل
-        chat_history.append({
+        # Save model response into memory
+        chat_sessions[session_id].append({
             "role": "assistant",
-            "content": assistant_message
+            "content": assistant_reply
         })
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/plain"
-    )
+    return StreamingResponse(generate(), media_type="application/json")
