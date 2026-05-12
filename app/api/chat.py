@@ -91,5 +91,5 @@ def chat(
 
     return StreamingResponse(
         generate(),
-        media_type="application/json"
+        media_type="application/x-ndjson"
     )
