@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-
 import requests
 import json
 
@@ -9,18 +8,13 @@ app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+# حافظه مکالمه
+chat_history = []
 
-MODEL_NAME = "gemma3:4b"
-
-SYSTEM_PROMPT = """
-تو یک دستیار فارسی حرفه‌ای هستی.
-همیشه فارسی پاسخ بده.
-"""
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-
     return templates.TemplateResponse(
         request=request,
         name="index.html"
@@ -30,45 +24,49 @@ async def home(request: Request):
 async def chat(request: Request):
 
     data = await request.json()
+    user_message = data.get("message")
 
-    user_message = data["message"]
+    # ذخیره پیام کاربر
+    chat_history.append({
+        "role": "user",
+        "content": user_message
+    })
 
-    prompt = f"""
-{SYSTEM_PROMPT}
-
-کاربر:
-{user_message}
-
-دستیار:
-"""
+    payload = {
+        "model": "gemma3:4b",
+        "messages": chat_history,
+        "stream": True
+    }
 
     def generate():
 
         response = requests.post(
             OLLAMA_URL,
-            json={
-                "model": MODEL_NAME,
-                "prompt": prompt,
-                "stream": True
-            },
+            json=payload,
             stream=True
         )
+
+        assistant_message = ""
 
         for line in response.iter_lines():
 
             if line:
 
-                decoded = line.decode("utf-8")
+                decoded_line = line.decode("utf-8")
+                json_data = json.loads(decoded_line)
 
-                try:
+                if "message" in json_data:
+                    content = json_data["message"]["content"]
 
-                    json_data = json.loads(decoded)
+                    assistant_message += content
 
-                    if "response" in json_data:
-                        yield json_data["response"]
+                    yield content
 
-                except:
-                    pass
+        # ذخیره پاسخ مدل
+        chat_history.append({
+            "role": "assistant",
+            "content": assistant_message
+        })
 
     return StreamingResponse(
         generate(),
