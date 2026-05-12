@@ -10,7 +10,7 @@ import uuid
 app = FastAPI()
 
 # Static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("../app/web/static", StaticFiles(directory="static"), name="static")
 
 # Templates folder
 templates = Jinja2Templates(directory="templates")
