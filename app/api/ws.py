@@ -18,6 +18,8 @@ async def chat_ws(websocket: WebSocket):
     await websocket.accept()
 
     db: Session = next(get_session())
+    # db_gen = get_session()
+    # db = next(db_gen)
 
     while True:
 
@@ -75,3 +77,6 @@ async def chat_ws(websocket: WebSocket):
         await websocket.send_text(json.dumps({
             "type": "done"
         }))
+
+###
+# db_gen.close()
