@@ -3,6 +3,8 @@ A lightweight Persian Large Language Model chat interface built with FastAPI, Ol
 
 This project provides a simple infrastructure for interacting with local LLMs (such as Gemma) while supporting Persian language conversations. It is designed as a starting point for building research tools, Persian AI assistants, and RAG-based systems.
 
+![Chat UI](images/img.png)
+
 ### Features
 FastAPI backend (high‑performance async API)
 Integration with Ollama for running local LLMs
@@ -56,7 +58,7 @@ You can also use other models supported by Ollama.
 Running the Application
 Start the FastAPI server:
 ```
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 Then open your browser:
 
@@ -67,18 +69,12 @@ You will see the chat interface.
 
 ### Project Structure
 ```
-PersianLLM
-│
+app/
 ├── main.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-│
-├── templates
-│   └── index.html
-│
-└── static
-main.py
+├── routers/
+├── services/
+├── core/
+├── models/
 ```
 
 FastAPI backend and streaming endpoint.
